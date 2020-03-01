@@ -10,7 +10,6 @@ protected:
 	virtual void bindFBO(void);
 	virtual void bindTexture(void) = 0;
 	virtual void bindRBO(void);
-	GLuint FBO = 0;
 	GLuint texture;
 	GLuint RBO;
 	GLenum type;
@@ -20,20 +19,23 @@ protected:
 	int height;
 	glm::vec4 defaultColor;
 public:
+	GLuint FBO = 0;
+
 	DecoratedFrameBuffer() {};
 	DecoratedFrameBuffer(int width, int height, std::string signature, GLenum type, glm::vec4 defaultColor = glm::vec4(),
 						 GLenum clearType = GL_COLOR_BUFFER_BIT);
 	DecoratedFrameBuffer(DecoratedFrameBuffer* child, int width, int height, std::string signature, GLenum type,
 						 glm::vec4 defaultColor = glm::vec4(), GLenum clearType = GL_COLOR_BUFFER_BIT);
+	DecoratedFrameBuffer(int attachmentNumber, GLuint FBO, int width, int height, std::string signature, GLenum type,
+						 glm::vec4 defaultColor = glm::vec4(), GLenum clearType = GL_COLOR_BUFFER_BIT);
 	~DecoratedFrameBuffer() {};
 
-	virtual void drawBuffers(void);
+	virtual DecoratedFrameBuffer* drawBuffers(std::vector<GLuint>& buff);
+	virtual void postDrawBuffers(std::vector<GLuint>& buff);
 	void drawBuffer(std::string signature);
 	void drawBuffers(std::vector<std::string> signatures);
 
-	virtual int bindTexturesForPass(std::unordered_set<std::string> texturesToSkip, int textureOffset = 0);
-	void bindTexturesForPass(std::string signature);
-	void bindTexturesForPass(std::vector<std::string> signatures);
+	virtual int bindTexturesForPass(int textureOffset = 0);
 
 	DecoratedFrameBuffer* make(void) { return NULL; };
 	std::string printOwnProperties(void);
@@ -42,14 +44,17 @@ public:
 // TODO : make singleton pattern
 class DefaultFrameBuffer : public DecoratedFrameBuffer
 {
+private:
+	static DefaultFrameBuffer* frameBuffer;
 protected:
 	void bindFBO(void);
 	void bindTexture(void);
 	void bindRBO(void);
 	int bindTexturesForPass(int textureOffset = 0);
-public:
 	DefaultFrameBuffer();
 	~DefaultFrameBuffer() {};
+public:
+	static DefaultFrameBuffer* getInstance();
 };
 
 class ImageFrameBuffer : public DecoratedFrameBuffer
@@ -59,6 +64,8 @@ protected:
 public:
 	ImageFrameBuffer(int width, int height, std::string signature, glm::vec4 defaultColor = glm::vec4(), GLenum clearType = GL_COLOR_BUFFER_BIT);
 	ImageFrameBuffer(DecoratedFrameBuffer* child, int width, int height, std::string signature, glm::vec4 defaultColor = glm::vec4(),
+					 GLenum clearType = GL_COLOR_BUFFER_BIT);
+	ImageFrameBuffer(int attachmentNumber, GLuint FBO, int width, int height, std::string signature, glm::vec4 defaultColor = glm::vec4(),
 					 GLenum clearType = GL_COLOR_BUFFER_BIT);
 	~ImageFrameBuffer() {};
 };
@@ -70,6 +77,7 @@ protected:
 public:
 	PickingBuffer(int width, int height, std::string signature);
 	PickingBuffer(DecoratedFrameBuffer* child, int width, int height, std::string signature);
+	PickingBuffer(int attachmentNumber, GLuint FBO, int width, int height, std::string signature);
 	~PickingBuffer() {};
 
 	GLuint* getValues(int x, int y, int sampleW = 1, int sampleH = 1);

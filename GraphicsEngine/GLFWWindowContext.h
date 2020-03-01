@@ -6,6 +6,7 @@ struct GLFWwindow;
 class GLFWWindowContext : public WindowContext
 {
 public:
+	static void initialize(void);
 	GLFWwindow* window;
 	GLFWWindowContext(float width, float height, const char* title);
 	~GLFWWindowContext();

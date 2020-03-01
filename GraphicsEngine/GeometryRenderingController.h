@@ -30,7 +30,7 @@ unsigned int GeometryRenderingController<T, S>::getPickingID(GeometryPass* gP, d
 {
 	auto widthHeight = WindowContext::context->getSize();
 
-	auto picking = (PickingBuffer*)gP->frameBuffer->signatureLookup(signature);
+	auto picking = (PickingBuffer*)gP->getFrameBuffer(signature);
 	auto data = picking->getValues(xpos, widthHeight.second - ypos);
 	gP->setupOnHover(data[0]);
 	int d = data[0];
@@ -45,12 +45,12 @@ void GeometryRenderingController<T, S>::updatePicker(GLFWwindow* window, std::st
 {
 	double xpos, ypos;
 	glfwGetCursorPos(window, &xpos, &ypos);
-	auto gP = (GeometryPass*)context->passRootNode->signatureLookup(passSignature);
+	auto gP = (GeometryPass*)Controller<T, S>::context->pipeline2;
 	unsigned int currentPick = getPickingID(gP, xpos, ypos);
-	int maxCount = controller->context->refMan->count;
+	int maxCount = Controller<T, S>::controller->context->refMan->count;
 	if (lastPick != currentPick && (currentPick < maxCount || lastPick < maxCount))
 	{
-		controller->context->dirty = true;
+		Controller<T, S>::controller->context->dirty = true;
 	}
 
 	lastPick = currentPick;
@@ -65,14 +65,14 @@ void GeometryRenderingController<T, S>::keyboardRendering(int key, int action)
 
 		if (edgeRendering)
 		{
-			context->addEdges();
+			Controller<T, S>::context->addEdges();
 		}
 		else
 		{
-			context->removeEdges();
+			Controller<T, S>::context->removeEdges();
 		}
 
-		context->dirty = true;
+		Controller<T, S>::context->dirty = true;
 	}
 
 	if (key == GLFW_KEY_R && action == GLFW_PRESS)
@@ -81,14 +81,14 @@ void GeometryRenderingController<T, S>::keyboardRendering(int key, int action)
 
 		if (volumeRendering)
 		{
-			context->addVolumes();
+			Controller<T, S>::context->addVolumes();
 		}
 		else
 		{
-			context->removeVolumes();
+			Controller<T, S>::context->removeVolumes();
 		}
 
-		context->dirty = true;
+		Controller<T, S>::context->dirty = true;
 	}
 
 	if (key == GLFW_KEY_V && action == GLFW_PRESS)
@@ -97,14 +97,14 @@ void GeometryRenderingController<T, S>::keyboardRendering(int key, int action)
 
 		if (pointRendering)
 		{
-			context->addVertices();
+			Controller<T, S>::context->addVertices();
 		}
 		else
 		{
-			context->removeVertices();
+			Controller<T, S>::context->removeVertices();
 		}
 
-		context->dirty = true;
+		Controller<T, S>::context->dirty = true;
 	}
 
 	if (key == GLFW_KEY_F && action == GLFW_PRESS)
@@ -113,13 +113,13 @@ void GeometryRenderingController<T, S>::keyboardRendering(int key, int action)
 
 		if (surfaceRendering)
 		{
-			context->addSurfaces();
+			Controller<T, S>::context->addSurfaces();
 		}
 		else
 		{
-			context->removeSurfaces();
+			Controller<T, S>::context->removeSurfaces();
 		}
 
-		context->dirty = true;
+		Controller<T, S>::context->dirty = true;
 	}
 }

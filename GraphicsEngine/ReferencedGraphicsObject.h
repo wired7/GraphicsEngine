@@ -12,7 +12,7 @@ namespace Graphics
 		std::map<DecoratedGraphicsObject*, std::pair<DecoratedGraphicsObject*, std::vector<std::pair<int, int>>>> managedGraphicsObject;
 		std::map<int, std::pair<DecoratedGraphicsObject*, int>> inverseLookupMap;
 	public:
-		unsigned int count = 0;
+		unsigned int count = 1;
 		ReferenceManager();
 		~ReferenceManager();
 		int assignNewGUID(DecoratedGraphicsObject* gObject, int indexWithinObject = 0);

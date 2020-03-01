@@ -70,7 +70,7 @@ namespace Graphics
 
 	Polyhedron::Polyhedron(int resolution, glm::vec3 pos, glm::vec3 radii) : MeshObject()
 	{
-		model = scale(translate(glm::mat4(1.0f), pos), radii);
+		model = glm::rotate(glm::mat4(1.0f), 3.1415f / 2.0f, glm::vec3(1, 0, 0)) * scale(glm::mat4(1.0f), radii) * translate(glm::mat4(1.0f), pos);
 		this->resolution = resolution;
 
 		double theta = 2 * 3.1415 / resolution;
@@ -124,9 +124,9 @@ namespace Graphics
 			indices.push_back(vertices.size() - 2);
 			indices.push_back((i + 1) % resolution);
 
-			indices.push_back(vertices.size() - 2 - resolution + i);
-			indices.push_back(vertices.size() - resolution + (i + 1) % resolution - 2);
 			indices.push_back(vertices.size() - 1);
+			indices.push_back(vertices.size() - 2 - resolution + i);
+			indices.push_back(vertices.size() - 2 - resolution + ((i + 1) % resolution));
 		}
 
 		bindBuffers();

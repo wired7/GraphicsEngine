@@ -150,6 +150,17 @@ namespace Graphics
 		}
 	}
 
+	void MeshObject::bakeTransform(void)
+	{
+		for (auto& vertex : vertices)
+		{
+			vertex.position = glm::vec3(model * glm::vec4(vertex.position, 1.0f));
+			vertex.normal = glm::normalize(glm::vec3(glm::transpose(glm::inverse(model)) * glm::vec4(vertex.normal, 0.0f)));
+		}
+
+		model = glm::mat4(1.0f);
+	}
+
 	ImportedMeshObject::ImportedMeshObject(const char* string) : MeshObject()
 	{
 		loadFile(string);

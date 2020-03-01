@@ -23,7 +23,7 @@ public:
 
 template<class T, class S> void FPSCameraController<T, S>::scrollMove(double xOffset, double yOffset)
 {
-	context->cameras[0]->moveInDirection(glm::vec3(-glm::sign(xOffset) * 4, 0, glm::sign(yOffset) * 4));
+	Controller<T, S>::context->cameras[0]->moveInDirection(glm::vec3(-glm::sign(xOffset) * 4, 0, glm::sign(yOffset) * 4));
 };
 
 template<class T, class S> void FPSCameraController<T, S>::rotateHead(FPSCamera* cam, double xOffset, double yOffset)
@@ -49,7 +49,7 @@ template<class T, class S> void FPSCameraController<T, S>::mousePosRotation(doub
 	lastX = xpos;
 	lastY = ypos;
 
-	auto cam = context->cameras[0];
+	auto cam = Controller<T, S>::context->cameras[0];
 	/*		if (cameraDrag)
 	{
 	auto cosine = -cam->lookAtVector;
@@ -76,7 +76,7 @@ template<class T, class S> void FPSCameraController<T, S>::keyboardControls(GLFW
 	// camera controls
 	if (key == GLFW_KEY_F1 && action == GLFW_RELEASE)
 	{
-		bool& freeRotation = context->cameras[0]->freeRotation;
+		bool& freeRotation = Controller<T, S>::context->cameras[0]->freeRotation;
 
 		freeRotation = !freeRotation;
 
@@ -92,55 +92,55 @@ template<class T, class S> void FPSCameraController<T, S>::keyboardControls(GLFW
 
 	if (key == GLFW_KEY_LEFT_SHIFT && action == GLFW_RELEASE)
 	{
-		context->cameras[0]->changeSpeed();
+		Controller<T, S>::context->cameras[0]->changeSpeed();
 	}
 
 	if (key == GLFW_KEY_W)
 	{
 		if (action == GLFW_PRESS)
-			context->cameras[0]->addVelocity(glm::vec3(0, 0, 1));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, 0, 1));
 		if (action == GLFW_RELEASE)
-			context->cameras[0]->addVelocity(glm::vec3(0, 0, -1));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, 0, -1));
 	}
 
 	if (key == GLFW_KEY_S)
 	{
 		if (action == GLFW_PRESS)
-			context->cameras[0]->addVelocity(glm::vec3(0, 0, -1));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, 0, -1));
 		if (action == GLFW_RELEASE)
-			context->cameras[0]->addVelocity(glm::vec3(0, 0, 1));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, 0, 1));
 	}
 
 	if (key == GLFW_KEY_A)
 	{
 		if (action == GLFW_PRESS)
-			context->cameras[0]->addVelocity(glm::vec3(-1, 0, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(-1, 0, 0));
 		if (action == GLFW_RELEASE)
-			context->cameras[0]->addVelocity(glm::vec3(1, 0, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(1, 0, 0));
 	}
 
 	if (key == GLFW_KEY_D)
 	{
 		if (action == GLFW_PRESS)
-			context->cameras[0]->addVelocity(glm::vec3(1, 0, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(1, 0, 0));
 		if (action == GLFW_RELEASE)
-			context->cameras[0]->addVelocity(glm::vec3(-1, 0, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(-1, 0, 0));
 	}
 
 	if (key == GLFW_KEY_SPACE)
 	{
 		if (action == GLFW_PRESS)
-			context->cameras[0]->addVelocity(glm::vec3(0, 1, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, 1, 0));
 		if (action == GLFW_RELEASE)
-			context->cameras[0]->addVelocity(glm::vec3(0, -1, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, -1, 0));
 	}
 
 	if (key == GLFW_KEY_LEFT_CONTROL)
 	{
 		if (action == GLFW_PRESS)
-			context->cameras[0]->addVelocity(glm::vec3(0, -1, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, -1, 0));
 		if (action == GLFW_RELEASE)
-			context->cameras[0]->addVelocity(glm::vec3(0, 1, 0));
+			Controller<T, S>::context->cameras[0]->addVelocity(glm::vec3(0, 1, 0));
 	}
 };
 

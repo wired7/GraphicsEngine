@@ -5,16 +5,36 @@
 template<class T> class DirectedGraphNode
 {
 protected:
-	std::vector<T*> neighbors;
-	std::vector<T*> parents;
+	class EdgeData
+	{
+	public:
+		T* source;
+		T* destination;
+
+		EdgeData(T* source, T* destination) : source(source), destination(destination) {};
+		virtual ~EdgeData() {};
+	};
+
+	class DirectedEdge final
+	{
+	public:
+		EdgeData* data;
+
+		DirectedEdge(EdgeData* data) : data(data) {};
+		DirectedEdge(T* source, T* destination) : data(new EdgeData(source, destination)) {};
+		~DirectedEdge() {};
+	};
+
+	std::vector<DirectedEdge*> neighborEdges;
+	std::vector<DirectedEdge*> parentEdges;
 public:
 	std::string signature;
 	DirectedGraphNode();
-	DirectedGraphNode(std::vector<T*> neighbors, std::string signature);
+	DirectedGraphNode(std::vector<DirectedEdge*> neighbors, std::string signature);
 	DirectedGraphNode(std::string signature);
 	~DirectedGraphNode();
-	void addNeighbor(T* neighbor);
-	void addNeighbors(std::vector<T*> neighbors);
+	void addNeighbor(T* neighbor, DirectedEdge* edge = nullptr);
+	void addNeighbors(std::vector<DirectedEdge*> neighbors);
 	std::vector<T*> getLeaves();
 	virtual T* clone();
 	// TODO: Recursive Lookup of signature through children
@@ -33,7 +53,8 @@ template<class T> DirectedGraphNode<T>::DirectedGraphNode()
 {
 }
 
-template<class T> DirectedGraphNode<T>::DirectedGraphNode(std::vector<T*> neighbors, std::string signature) : neighbors(neighbors), signature(signature)
+template<class T> DirectedGraphNode<T>::DirectedGraphNode(std::vector<DirectedEdge*> neighbors, std::string signature) :
+	neighbors(neighbors), signature(signature)
 {
 }
 
@@ -46,10 +67,15 @@ template<class T> DirectedGraphNode<T>::~DirectedGraphNode()
 
 }
 
-template<class T> void DirectedGraphNode<T>::addNeighbor(T* neighbor)
+template<class T> void DirectedGraphNode<T>::addNeighbor(T* neighbor, DirectedEdge* edge)
 {
-	neighbors.push_back(neighbor);
-	neighbor->parents.push_back((T*)this);
+	if (edge == nullptr)
+	{
+		edge = new DirectedEdge((T*)this, neighbor);
+	}
+
+	neighborEdges.push_back(edge);
+	neighbor->parentEdges.push_back(edge);
 }
 
 template <class T> T* DirectedGraphNode<T>::clone()
@@ -64,9 +90,9 @@ template <class T> T* DirectedGraphNode<T>::signatureLookup(std::string signatur
 		return (T*)this;
 	}
 
-	for (int i = 0; i < neighbors.size(); i++)
+	for (const auto& neighbor : neighborEdges)
 	{
-		auto output = neighbors[i]->signatureLookup(signature);
+		auto output = neighbor->data->destination->signatureLookup(signature);
 
 		if (output != nullptr)
 		{

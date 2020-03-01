@@ -7,7 +7,7 @@
 
 class ShaderProgramPipeline;
 
-enum UniformType {ONEUI, TWOUI, MATRIX4FV, VECTOR4FV, VECTOR2IV, TEXTURE};
+enum UniformType {FLOAT, ONEUI, TWOUI, MATRIX4FV, VECTOR4FV, VECTOR2IV, TEXTURE};
 
 class ShaderProgram
 {

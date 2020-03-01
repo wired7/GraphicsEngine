@@ -46,7 +46,6 @@ protected:
 	virtual void setupGeometries(void) = 0;
 	virtual void setupPasses(const std::vector<std::string>& gProgramSignatures,
 							 const std::vector<std::string>& lProgramSignatures);
-	virtual void makeQuad(void);
 public:
 	bool dirty = true;
 	Pass* passRootNode = nullptr;
@@ -64,7 +63,7 @@ void GraphicsSceneContext<ControllerType, CameraType, ContextType>::setupPasses(
 																				const std::vector<std::string>& lProgramSignatures)
 {
 	// TODO: might want to manage passes as well
-	std::map<std::string, ShaderProgramPipeline*> gPrograms;
+	std::unordered_map<std::string, ShaderProgramPipeline*> gPrograms;
 
 	for (const auto& programSignature : gProgramSignatures)
 	{
@@ -74,7 +73,7 @@ void GraphicsSceneContext<ControllerType, CameraType, ContextType>::setupPasses(
 	GeometryPass* gP = new GeometryPass(gPrograms, "GEOMETRYPASS", nullptr, 1);
 	gP->setupCamera(GraphicsSceneContext<ControllerType, CameraType, ContextType>::cameras[0]);
 
-	std::map<std::string, ShaderProgramPipeline*> lPrograms;
+	std::unordered_map<std::string, ShaderProgramPipeline*> lPrograms;
 
 	for (const auto& programSignature : lProgramSignatures)
 	{
@@ -86,23 +85,6 @@ void GraphicsSceneContext<ControllerType, CameraType, ContextType>::setupPasses(
 	gP->addNeighbor(lP);
 
 	passRootNode = gP;
-}
-
-template<class ControllerType, class CameraType, class ContextType>
-void GraphicsSceneContext<ControllerType, CameraType, ContextType>::makeQuad(void)
-{
-	// TODO : not a big deal, but primitive vertices should only exist once on the GPU per program and transformed accordingly using Model matrix or instancing
-	auto displayQuad = new Graphics::Quad();
-
-	std::vector<glm::vec2> uvMap;
-	uvMap.push_back(glm::vec2(0, 0));
-	uvMap.push_back(glm::vec2(1, 0));
-	uvMap.push_back(glm::vec2(0, 1));
-	uvMap.push_back(glm::vec2(1, 1));
-
-	auto displayQuadUV = new Graphics::ExtendedMeshObject<glm::vec2, float>(displayQuad, uvMap, "TEXTURECOORD");
-
-	geometries["DISPLAYQUAD"] = displayQuadUV;
 }
 
 template<class ControllerType, class CameraType, class ContextType>

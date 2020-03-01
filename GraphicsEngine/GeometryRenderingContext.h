@@ -41,7 +41,8 @@ addAllRenderableObjects(GeometryPass* pass,
 {
 	for (const auto& currentPair : meshShaderPairs)
 	{
-		pass->addRenderableObjects(geometries[currentPair.first], currentPair.first, currentPair.second);
+		pass->addRenderableObjects(GraphicsSceneContext<ControllerType, CameraType, ContextType>::geometries[currentPair.first],
+								   currentPair.first, currentPair.second);
 	}
 };
 
@@ -59,7 +60,7 @@ removeAllRenderableObjects(GeometryPass* pass,
 template<class ControllerType, class CameraType, class ContextType>
 GeometryPass* GeometryRenderingContext<ControllerType, CameraType, ContextType>::getGeometryPass()
 {
-	return (GeometryPass*)passRootNode->signatureLookup("GEOMETRYPASS");
+	return (GeometryPass*)GraphicsSceneContext<ControllerType, CameraType, ContextType>::passRootNode->signatureLookup("GEOMETRYPASS");
 }
 
 template<class ControllerType, class CameraType, class ContextType>

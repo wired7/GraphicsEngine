@@ -69,3 +69,22 @@ std::pair<double, double> GLFWWindowContext::getCursorPos()
 
 	return std::make_pair(xpos, ypos);
 }
+
+void GLFWWindowContext::initialize(void)
+{
+	if (context == nullptr)
+	{
+		context = new GLFWWindowContext(0.8, 0.8, "PARTICLES");
+
+		// Initialize GLEW
+		glewExperimental = true; // Needed for core profile
+		if (glewInit() != GLEW_OK) {
+			std::cerr << "Failed to initialize GLEW\n" << std::endl;
+			getchar();
+			glfwTerminate();
+		}
+
+		//Check version of OpenGL and print
+		std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
+	}
+}

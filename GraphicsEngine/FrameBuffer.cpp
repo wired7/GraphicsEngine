@@ -16,6 +16,13 @@ DecoratedFrameBuffer::DecoratedFrameBuffer(DecoratedFrameBuffer* child, int widt
 	attachmentNumber = child->attachmentNumber + 1;
 }
 
+DecoratedFrameBuffer::DecoratedFrameBuffer(int attachmentNumber, GLuint FBO, int width, int height, std::string signature,
+										   GLenum type, glm::vec4 defaultColor, GLenum clearType) :
+	Decorator<DecoratedFrameBuffer>(nullptr, signature), width(width), height(height), type(type), defaultColor(defaultColor), clearType(clearType),
+	attachmentNumber(attachmentNumber), FBO(FBO)
+{
+}
+
 void DecoratedFrameBuffer::bindFBO()
 {
 	if (FBO == 0)
@@ -41,53 +48,52 @@ void DecoratedFrameBuffer::bindRBO()
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 }
 
-void DecoratedFrameBuffer::drawBuffers(void)
+DecoratedFrameBuffer* DecoratedFrameBuffer::drawBuffers(std::vector<GLenum>& buff)
 {
-	std::vector<GLenum> buff;
 	auto lastBuffer = this;
 	DecoratedFrameBuffer* currentBuffer = this;
+
 	do
 	{
+		int aNumber = currentBuffer->attachmentNumber;
+//		std::cout << aNumber << " " << currentBuffer->FBO << std::endl;
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, currentBuffer->FBO);
 		glClearColor(currentBuffer->defaultColor.r, currentBuffer->defaultColor.g, currentBuffer->defaultColor.b, currentBuffer->defaultColor.a);
 		glClear(currentBuffer->clearType);
-		buff.insert(buff.begin(), GL_COLOR_ATTACHMENT0 + currentBuffer->attachmentNumber);
+		buff[aNumber] = GL_COLOR_ATTACHMENT0 + aNumber;
 		lastBuffer = currentBuffer;
 		currentBuffer = currentBuffer->child;
 	} while (currentBuffer != nullptr);
 
-	glDrawBuffers(buff.size(), &(buff[0]));
-	glClearColor(lastBuffer->defaultColor.r, lastBuffer->defaultColor.g, lastBuffer->defaultColor.b, lastBuffer->defaultColor.a);
-	glClear(lastBuffer->clearType);
+	return lastBuffer;
 }
 
-int DecoratedFrameBuffer::bindTexturesForPass(std::unordered_set<std::string> texturesToSkip, int textureOffset)
+void DecoratedFrameBuffer::postDrawBuffers(std::vector<GLuint>& buff)
+{
+/*	for (const auto& b : buff)
+	{
+		std::cout << b << " ";
+	}
+
+	std::cout << std::endl;*/
+	glDrawBuffers(buff.size(), &(buff[0]));
+	glClearColor(defaultColor.r, defaultColor.g, defaultColor.b, defaultColor.a);
+	glClear(clearType);
+}
+
+int DecoratedFrameBuffer::bindTexturesForPass(int textureOffset)
 {
 	DecoratedFrameBuffer* currentBuffer = this;
-	int usedTextures = textureOffset;
-	while(currentBuffer != nullptr)
+	int index = textureOffset;
+	do
 	{
-		if (texturesToSkip.find(currentBuffer->signature) == texturesToSkip.end())
-		{
-			usedTextures++;
-		}
-
+//		std::cout << "\t\t" << index << " " << currentBuffer->signature << " " << currentBuffer->attachmentNumber << std::endl;
+		glActiveTexture(GL_TEXTURE0 + index++);
+		glBindTexture(currentBuffer->type, currentBuffer->texture);
 		currentBuffer = currentBuffer->child;
-	}
+	} while (currentBuffer != nullptr);
 
-	currentBuffer = this;
-	for (int j = usedTextures - 1; j >= textureOffset;)
-	{
-		if (texturesToSkip.find(currentBuffer->signature) == texturesToSkip.end())
-		{
-			glActiveTexture(GL_TEXTURE0 + j--);
-			glBindTexture(currentBuffer->type, currentBuffer->texture);
-		}
-
-		currentBuffer = currentBuffer->child;
-	}
-
-	return usedTextures;
+	return index;
 }
 
 std::string DecoratedFrameBuffer::printOwnProperties(void)
@@ -95,12 +101,24 @@ std::string DecoratedFrameBuffer::printOwnProperties(void)
 	return std::to_string(attachmentNumber) + "\n";
 }
 
+DefaultFrameBuffer* DefaultFrameBuffer::frameBuffer = nullptr;
+
+DefaultFrameBuffer* DefaultFrameBuffer::getInstance()
+{
+	if(frameBuffer == nullptr)
+	{
+		frameBuffer = new DefaultFrameBuffer();
+	}
+
+	return frameBuffer;
+}
+
 DefaultFrameBuffer::DefaultFrameBuffer()
 {
 	FBO = 0;
 	signature = "DEFAULT";
 	defaultColor = glm::vec4(1.0f);
-	clearType = GL_COLOR_BUFFER_BIT;
+	clearType = GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT;
 }
 
 void DefaultFrameBuffer::bindFBO()
@@ -143,6 +161,17 @@ ImageFrameBuffer::ImageFrameBuffer(DecoratedFrameBuffer* child, int width, int h
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+ImageFrameBuffer::ImageFrameBuffer(int attachmentNumber, GLuint FBO, int width, int height, std::string signature, glm::vec4 defaultColor,
+								   GLenum clearType) :
+	DecoratedFrameBuffer(attachmentNumber, FBO, width, height, signature, GL_TEXTURE_2D, defaultColor)
+{
+	bindFBO();
+	bindTexture();
+	bindRBO();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 void ImageFrameBuffer::bindTexture()
 {
 	glGenTextures(1, &texture);
@@ -157,7 +186,7 @@ void ImageFrameBuffer::bindTexture()
 }
 
 PickingBuffer::PickingBuffer(DecoratedFrameBuffer* child, int width, int height, std::string signature) :
-	DecoratedFrameBuffer(child, width, height, signature, GL_TEXTURE_2D, glm::vec4(1.0f), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+	DecoratedFrameBuffer(child, width, height, signature, GL_TEXTURE_2D, glm::vec4(0), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 {
 	bindFBO();
 	bindTexture();
@@ -167,7 +196,17 @@ PickingBuffer::PickingBuffer(DecoratedFrameBuffer* child, int width, int height,
 }
 
 PickingBuffer::PickingBuffer(int width, int height, std::string signature) :
-	DecoratedFrameBuffer(width, height, signature, GL_TEXTURE_2D, glm::vec4(1.0f), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+	DecoratedFrameBuffer(width, height, signature, GL_TEXTURE_2D, glm::vec4(0), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+{
+	bindFBO();
+	bindTexture();
+	bindRBO();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+PickingBuffer::PickingBuffer(int attachmentNumber, GLuint FBO, int width, int height, std::string signature) :
+	DecoratedFrameBuffer(attachmentNumber, FBO, width, height, signature, GL_TEXTURE_2D, glm::vec4(0), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 {
 	bindFBO();
 	bindTexture();

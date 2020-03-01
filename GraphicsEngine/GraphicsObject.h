@@ -54,10 +54,11 @@ namespace Graphics {
 		MeshObject(std::vector<Vertex> vertices, std::vector<GLuint> indices);
 		~MeshObject();
 
-		virtual DecoratedGraphicsObject* make() { return NULL; };
-		virtual void computeNormals() {};
+		virtual DecoratedGraphicsObject* make() { return nullptr; };
+		virtual void computeNormals(void) {};
 		virtual void addVertex(glm::vec3 pos, glm::vec3 normal = glm::vec3());
 		virtual void addTriangle(int a, int b, int c) {};
+		virtual void bakeTransform(void);
 		// TODO: apply vertex deletion, but careful! when a vertex is deleted from the buffer, all of the indices change, and it's necessary to also
 		// remove any triangles that may refer to that vertex index first
 		virtual void deleteVertex(int index) {};

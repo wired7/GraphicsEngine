@@ -1,6 +1,7 @@
 #pragma once
 #include "Pass.h"
 #include "WindowContext.h"
+#include "GLFWWindowContext.h"
 #include "GeometricalMeshObjects.h"
 #include "FrameBuffer.h"
 #include "ShaderProgramPipeline.h"
@@ -9,12 +10,8 @@ Pass::Pass()
 {
 }
 
-Pass::Pass(std::map<std::string, ShaderProgramPipeline*> shaderPipelines, std::vector<Pass*> neighbors, std::string signature) :
-	DirectedGraphNode(neighbors, signature), shaderPipelines(shaderPipelines)
-{
-}
-
-Pass::Pass(std::map<std::string, ShaderProgramPipeline*> shaderPipelines, std::string signature) : DirectedGraphNode(signature), shaderPipelines(shaderPipelines)
+Pass::Pass(std::unordered_map<std::string, ShaderProgramPipeline*> shaderPipelines, std::string signature) :
+	DirectedGraphNode(signature), shaderPipelines(shaderPipelines)
 {
 }
 
@@ -22,42 +19,82 @@ Pass::~Pass()
 {
 }
 
+void Pass::setTimedPassTimeLimit(long time)
+{
+	start = std::chrono::steady_clock::now();
+	isTimedPass = true;
+}
+
 void Pass::execute(void)
 {
-	currentCount++;
-	if (currentCount < incomingCount)
+	if (++currentCount < parentEdges.size())
 	{
 		return;
+	}
+
+	if (isTimedPass)
+	{
+		auto end = std::chrono::steady_clock::now();
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+		if (duration < timedPassTimeLimit)
+			return;
 	}
 
 	currentCount = 0;
 
 	executeOwnBehaviour();
 
-	for (int i = 0; i < neighbors.size(); i++)
+	for (const auto& func : postExecuteFunctors)
 	{
-		neighbors[i]->execute();
+		func.second();
+	}
+
+	for (const auto& edge : neighborEdges)
+	{
+		edge->data->destination->execute();
+	}
+
+	if (isTimedPass)
+	{
+		start = std::chrono::steady_clock::now();
 	}
 }
 
-void Pass::addNeighbor(Pass* neighbor)
+void Pass::registerPostExecuteFunctor(std::string signature, std::function<void()> functor)
 {
-	DirectedGraphNode::addNeighbor(neighbor);
-	neighbor->incomingCount++;
+	postExecuteFunctors.insert(std::make_pair(signature, functor));
 }
 
-RenderPass::RenderPass(std::map<std::string, ShaderProgramPipeline*> shaderPipelines, std::string signature, DecoratedFrameBuffer* frameBuffer, bool terminal) :
-	Pass(shaderPipelines, signature), frameBuffer(frameBuffer), terminal(terminal)
+Graphics::DecoratedGraphicsObject* makeQuad(void)
+{
+	GLFWWindowContext::initialize();
+	auto displayQuad = new Graphics::Quad();
+
+	std::vector<glm::vec2> uvMap;
+	uvMap.push_back(glm::vec2(0, 0));
+	uvMap.push_back(glm::vec2(1, 0));
+	uvMap.push_back(glm::vec2(0, 1));
+	uvMap.push_back(glm::vec2(1, 1));
+
+	return new Graphics::ExtendedMeshObject<glm::vec2, float>(displayQuad, uvMap, "TEXTURECOORD");
+}
+
+Graphics::DecoratedGraphicsObject* RenderPass::quad = makeQuad();
+
+RenderPass::RenderPass(std::unordered_map<std::string, ShaderProgramPipeline*> shaderPipelines, std::string signature,
+										  DecoratedFrameBuffer* frameBuffer, bool terminal) :
+	Pass(shaderPipelines, signature), terminal(terminal)
 {
 	registerUniforms();
 
 	for (const auto& pipeline : shaderPipelines)
 	{
-		renderableObjects[pipeline.second->signature] = std::map<std::string, Graphics::DecoratedGraphicsObject*>();
-		floatTypeUniformPointers[pipeline.second->signature] = std::map<std::string, std::tuple<std::string, GLfloat*>>();
-		uintTypeUniformPointers[pipeline.second->signature] = std::map<std::string, std::tuple<std::string, GLuint*>>();
-		intTypeUniformPointers[pipeline.second->signature] = std::map<std::string, std::tuple<std::string, GLint*>>();
-		uintTypeUniformValues[pipeline.second->signature] = std::map<std::string, std::tuple<std::string, GLuint>>();
+		renderableObjects[pipeline.second->signature] = std::unordered_map<std::string, Graphics::DecoratedGraphicsObject*>();
+		floatTypeUniformPointers[pipeline.second->signature] = std::unordered_map<std::string, std::tuple<std::string, GLfloat*>>();
+		uintTypeUniformPointers[pipeline.second->signature] = std::unordered_map<std::string, std::tuple<std::string, GLuint*>>();
+		intTypeUniformPointers[pipeline.second->signature] = std::unordered_map<std::string, std::tuple<std::string, GLint*>>();
+		uintTypeUniformValues[pipeline.second->signature] = std::unordered_map<std::string, std::tuple<std::string, GLuint>>();
 	}
 }
 
@@ -79,7 +116,8 @@ void RenderPass::clearRenderableObjects(const std::string& signature, const std:
 	}
 }
 
-void RenderPass::setRenderableObjects(std::map<std::string, std::map<std::string, Graphics::DecoratedGraphicsObject*>> input)
+void RenderPass::setRenderableObjects(std::unordered_map<std::string,
+									  std::unordered_map<std::string, Graphics::DecoratedGraphicsObject*>> input)
 {
 	renderableObjects = input;
 }
@@ -89,12 +127,12 @@ void RenderPass::addRenderableObjects(Graphics::DecoratedGraphicsObject* input, 
 	renderableObjects[programSignature][signature] = input;
 }
 
-void RenderPass::setFrameBuffer(DecoratedFrameBuffer* fb)
+void RenderPass::addFrameBuffer(DecoratedFrameBuffer* fb)
 {
-	frameBuffer = fb;
+	frameBuffers.insert(std::make_pair(fb->signature, fb));
 }
 
-void RenderPass::setTextureUniforms(const std::string& programSignature)
+void RenderPass::setUniforms(const std::string& programSignature)
 {
 	auto idsByProgram = uniformIDs[programSignature];
 
@@ -121,6 +159,10 @@ void RenderPass::setTextureUniforms(const std::string& programSignature)
 		{
 			glProgramUniform4fv(std::get<1>(uID), std::get<2>(uID), 1, std::get<1>(ptr.second));
 		}
+		else if (std::get<3>(uID) == FLOAT)
+		{
+			glProgramUniform1fv(std::get<1>(uID), std::get<2>(uID), 1, std::get<1>(ptr.second));
+		}
 	}
 
 	auto intPointerByProgram = intTypeUniformPointers[programSignature];
@@ -146,11 +188,6 @@ void RenderPass::setTextureUniforms(const std::string& programSignature)
 	}
 }
 
-void RenderPass::setTextureToIgnore(const std::string& signature, const std::string& parentPassSignature)
-{
-	texturesToIgnore[parentPassSignature].insert(signature);
-}
-
 void RenderPass::renderObjects(const std::string& programSignature)
 {
 	auto objectsByProgram = renderableObjects[programSignature];
@@ -166,7 +203,7 @@ void RenderPass::registerUniforms(void)
 {
 	for (const auto& pipeline : shaderPipelines)
 	{
-		uniformIDs[pipeline.second->signature] = std::map<std::string, std::tuple<std::string, GLuint, GLuint, UniformType, int>>();
+		uniformIDs[pipeline.second->signature] = std::unordered_map<std::string, std::tuple<std::string, GLuint, GLuint, UniformType, int>>();
 
 		for (const auto& program : pipeline.second->attachedPrograms)
 		{
@@ -188,26 +225,41 @@ void RenderPass::registerUniforms(void)
 void RenderPass::executeOwnBehaviour()
 {
 	// Set input textures from incoming passes for this stage
-	for (int i = 0, count = 0; i < parents.size(); i++)
+//	std::cout << "PASS: " << signature << std::endl;
+	int count = 0;
+	for (const auto& edge : parentEdges)
 	{
-		auto parent = dynamic_cast<RenderPass*>(parents[i]);
+		auto data = dynamic_cast<RenderEdgeData*>(edge->data);
 
-		if (parent == nullptr)
+		if (data == nullptr)
 		{
 			continue;
 		}
 
-		std::unordered_set<std::string> ignoreSet;
-		if (texturesToIgnore.find(parent->signature) != texturesToIgnore.end())
-		{
-			ignoreSet = texturesToIgnore[parent->signature];
-		}
+		auto fbs = data->frameBuffers;
 
-		count += parent->frameBuffer->bindTexturesForPass(ignoreSet, count);
+/*		if(fbs.size())
+			std::cout << "\tFROM: " << data->source->signature << std::endl;*/
+		for (const auto fb : fbs)
+		{
+			count = fb->bindTexturesForPass(count);
+		}
 	}
 
 	// Set output textures
-	frameBuffer->drawBuffers();
+	std::vector<GLuint> buff(frameBuffers.size());
+	DecoratedFrameBuffer* lastBuffer = nullptr;
+	for (const auto& fb : frameBuffers)
+	{
+		lastBuffer = fb.second->drawBuffers(buff);
+	}
+
+	if (lastBuffer != nullptr)
+	{
+		lastBuffer->postDrawBuffers(buff);
+	}
+
+//	std::cout << std::endl;
 
 	for (const auto pipeline : shaderPipelines)
 	{
@@ -217,21 +269,105 @@ void RenderPass::executeOwnBehaviour()
 		// Shader setup
 		pipeline.second->use();
 
-		// Texture uniforms setup
-		setTextureUniforms(pipeline.second->signature);
+		// Texture and miscellaneous uniforms setup
+		setUniforms(pipeline.second->signature);
 
 		// Object rendering
 		renderObjects(pipeline.second->signature);
 	}
 }
 
-GeometryPass::GeometryPass(std::map<std::string, ShaderProgramPipeline*> shaderPipelines,
+void RenderPass::setupCamera(Camera* cam)
+{
+	for (const auto pipeline : shaderPipelines)
+	{
+		updateFloatPointerBySignature<float>(pipeline.second->signature, "Projection", &(cam->Projection[0][0]));
+		updateFloatPointerBySignature<float>(pipeline.second->signature, "View", &(cam->View[0][0]));
+	}
+}
+
+void RenderPass::setupVec4f(glm::vec4& input, std::string name)
+{
+	for (const auto pipeline : shaderPipelines)
+	{
+		updateFloatPointerBySignature<float>(pipeline.second->signature, name, &(input[0]));
+	}
+}
+
+void RenderPass::setupVec2i(glm::ivec2& input, std::string name)
+{
+	for (const auto pipeline : shaderPipelines)
+	{
+		updateIntPointerBySignature<int>(pipeline.second->signature, name, &(input[0]));
+	}
+}
+
+void RenderPass::setupFloat(float* input, std::string name)
+{
+	for (const auto pipeline : shaderPipelines)
+	{
+		updateFloatPointerBySignature<float>(pipeline.second->signature, name, input);
+	}
+}
+
+void RenderPass::addNeighbor(Pass* neighbor, std::vector<std::string> passedFrameBufferSignatures)
+{
+	if (neighbor == nullptr)
+	{
+		return;
+	}
+
+	std::vector<DecoratedFrameBuffer*> passedFb;
+
+	if (passedFrameBufferSignatures.size() == 0)
+	{
+		for (const auto& fb : frameBuffers)
+		{
+			passedFb.push_back(fb.second);
+		}
+	}
+	else if (passedFrameBufferSignatures[0] != "NONE")
+	{
+		auto castNeighbor = dynamic_cast<RenderPass*>(neighbor);
+		if (castNeighbor != nullptr)
+		{
+			for (const auto& fbSignature : passedFrameBufferSignatures)
+			{
+				auto fb = frameBuffers.find(fbSignature);
+				if (fb != frameBuffers.end())
+				{
+					passedFb.push_back(fb->second);
+				}
+			}
+		}
+	}
+
+	DirectedGraphNode<Pass>::addNeighbor(neighbor, new DirectedEdge(new RenderEdgeData(this, neighbor, passedFb)));
+}
+
+DecoratedFrameBuffer* RenderPass::getFrameBuffer(std::string signature)
+{
+	for (const auto& fbPair : frameBuffers)
+	{
+		auto frameBuffer = fbPair.second;
+		auto foundFb = frameBuffer->signatureLookup(signature);
+
+		if (foundFb != nullptr)
+		{
+			return foundFb;
+		}
+	}
+}
+
+GeometryPass::GeometryPass(std::unordered_map<std::string, ShaderProgramPipeline*> shaderPipelines,
 			  std::string signature,
 			  DecoratedFrameBuffer* frameBuffer,
 			  int pickingBufferCount,
 			  int stencilBufferCount,
-			  bool terminal) :
-	pickingBufferCount(pickingBufferCount), stencilBufferCount(stencilBufferCount), RenderPass(shaderPipelines, signature, frameBuffer, terminal)
+			  bool terminal,
+			  GLenum clearType) :
+	pickingBufferCount(pickingBufferCount), stencilBufferCount(stencilBufferCount), clearType(clearType),
+	RenderPass(shaderPipelines, signature, frameBuffer, terminal)
 {
 	initFrameBuffers();
 }
@@ -243,22 +379,29 @@ void GeometryPass::initFrameBuffers(void)
 	int width = widthHeight.first;
 	int height = widthHeight.second;
 
-	auto colorsBuffer = new ImageFrameBuffer(width, height, "COLORS", glm::vec4(1.0f), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	auto normalsBuffer = new ImageFrameBuffer(colorsBuffer, width, height, "NORMALS", glm::vec4(), GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	DecoratedFrameBuffer* lastBuffer = new ImageFrameBuffer(normalsBuffer, width, height, "POSITIONS", glm::vec4(),
-															GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	int attachmentNumber = 0;
+	DecoratedFrameBuffer* lastBuffer = nullptr;
+
+	lastBuffer = frameBuffers["COLORS"] =
+		new ImageFrameBuffer(attachmentNumber++, 0, width, height, "COLORS", glm::vec4(), clearType);
+	frameBuffers["NORMALS"] =
+		new ImageFrameBuffer(attachmentNumber++, lastBuffer->FBO, width, height, "NORMALS", glm::vec4(), clearType);
+	frameBuffers["POSITIONS"] =
+		new ImageFrameBuffer(attachmentNumber++, lastBuffer->FBO, width, height, "POSITIONS", glm::vec4(), clearType);
+	frameBuffers["ABS_POSITIONS"] =
+		new ImageFrameBuffer(attachmentNumber++, lastBuffer->FBO, width, height, "ABS_POSITIONS", glm::vec4(), clearType);
 
 	for (int i = 0; i < pickingBufferCount; ++i)
 	{
-		lastBuffer = new PickingBuffer(lastBuffer, width, height, "PICKING" + std::to_string(i));
+		std::string key = "PICKING" + std::to_string(i);
+		frameBuffers[key] = new PickingBuffer(attachmentNumber++, lastBuffer->FBO, width, height, key);
 	}
 
 	for (int i = 0; i < stencilBufferCount; ++i)
 	{
-		lastBuffer = new PickingBuffer(lastBuffer, width, height, "STENCIL" + std::to_string(i));
+		std::string key = "STENCIL" + std::to_string(i);
+		frameBuffers[key] = new PickingBuffer(attachmentNumber++, lastBuffer->FBO, width, height, key);
 	}
-
-	frameBuffer = lastBuffer;
 }
 
 void GeometryPass::configureGL(const std::string& programSignature)
@@ -270,44 +413,28 @@ void GeometryPass::configureGL(const std::string& programSignature)
 	}
 	else
 	{
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		glDisable(GL_DEPTH_TEST);
 		glEnable(GL_BLEND);
+		glDisable(GL_DEPTH_TEST);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 
-	glEnable(GL_CULL_FACE);
+	if (shaderPipelines[programSignature]->cullFace)
+	{
+		glPolygonMode(GL_FRONT, GL_FILL);
+		glEnable(GL_CULL_FACE);
+	}
+	else
+	{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glDisable(GL_CULL_FACE);
+	}
 }
 
 void GeometryPass::setupObjectwiseUniforms(const std::string& programSignature, const std::string& signature)
 {
 	GLuint p = shaderPipelines[programSignature]->getProgramByEnum(GL_VERTEX_SHADER)->program;
-	glProgramUniformMatrix4fv(p, glGetUniformLocation(p, "Model"), 1, GL_FALSE, &(renderableObjects[programSignature][signature]->getModelMatrix()[0][0]));
-}
-
-void GeometryPass::setupCamera(Camera* cam)
-{
-	for (const auto pipeline : shaderPipelines)
-	{
-		updateFloatPointerBySignature<float>(pipeline.second->signature, "Projection", &(cam->Projection[0][0]));
-		updateFloatPointerBySignature<float>(pipeline.second->signature, "View", &(cam->View[0][0]));
-	}
-}
-
-void GeometryPass::setupVec4f(glm::vec4& input, std::string name)
-{
-	for (const auto pipeline : shaderPipelines)
-	{
-		updateFloatPointerBySignature<float>(pipeline.second->signature, name, &(input[0]));
-	}
-}
-
-void GeometryPass::setupVec2i(glm::ivec2& input, std::string name)
-{
-	for (const auto pipeline : shaderPipelines)
-	{
-		updateIntPointerBySignature<int>(pipeline.second->signature, name, &(input[0]));
-	}
+	glProgramUniformMatrix4fv(p, glGetUniformLocation(p, "Model"), 1, GL_FALSE,
+							  &(renderableObjects[programSignature][signature]->getModelMatrix()[0][0]));
 }
 
 void GeometryPass::setupOnHover(unsigned int id)
@@ -318,31 +445,76 @@ void GeometryPass::setupOnHover(unsigned int id)
 	}
 }
 
-LightPass::LightPass(std::map<std::string, ShaderProgramPipeline*> shaderPipelines, bool terminal) : 
+IntermediatePass::IntermediatePass(std::unordered_map<std::string, ShaderProgramPipeline*> shaderPipelines,
+								   int pickingBuffers,
+								   const std::string& signature) :
+	GeometryPass(shaderPipelines, signature, nullptr, pickingBuffers, 0, false, GL_COLOR_BUFFER_BIT)
+{
+	for (const auto& pipeline : renderableObjects)
+	{
+		addRenderableObjects(quad, "DISPLAYQUAD", pipeline.first);
+	}
+}
+
+void IntermediatePass::configureGL(const std::string& programSignature)
+{
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	glEnable(GL_CULL_FACE);
+	glPolygonMode(GL_FRONT, GL_FILL);
+}
+
+LightPass::LightPass(std::unordered_map<std::string, ShaderProgramPipeline*> shaderPipelines, bool terminal) :
 	RenderPass(shaderPipelines, "LIGHTPASS", nullptr)
 {
 	if (terminal)
 	{
-		frameBuffer = new DefaultFrameBuffer();
+		frameBuffers["DEFAULT"] = DefaultFrameBuffer::getInstance();
 	}
 	else
 	{
 		initFrameBuffers();
+	}
+	
+	for (const auto& pipeline : renderableObjects)
+	{
+		addRenderableObjects(quad, "DISPLAYQUAD", pipeline.first);
+	}
+}
+
+LightPass::LightPass(std::unordered_map<std::string, ShaderProgramPipeline*> shaderPipelines, DecoratedFrameBuffer* frameBuffer) :
+	RenderPass(shaderPipelines, "LIGHTPASS", frameBuffer)
+{
+	for (const auto& pipeline : renderableObjects)
+	{
+		addRenderableObjects(quad, "DISPLAYQUAD", pipeline.first);
 	}
 }
 
 void LightPass::initFrameBuffers(void)
 {
 	auto widthHeight = WindowContext::context->getSize();
-	auto imageFB = new ImageFrameBuffer(widthHeight.first, widthHeight.second, "MAINIMAGE", glm::vec4());
-
-	frameBuffer = imageFB;
+	frameBuffers["MAINIMAGE"] = new ImageFrameBuffer(widthHeight.first, widthHeight.second, "MAINIMAGE", glm::vec4(), GL_COLOR_BUFFER_BIT);
 }
 
 void LightPass::configureGL(const std::string& programSignature)
 {
-	glDisable(GL_DEPTH_TEST);
+	if (depthTest)
+	{
+		glEnable(GL_DEPTH_TEST);
+		
+	}
+	else
+	{
+		glDisable(GL_DEPTH_TEST);
+	}
+
 	glDisable(GL_BLEND);
-	glDisable(GL_CULL_FACE);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glEnable(GL_CULL_FACE);
+	glPolygonMode(GL_FRONT, GL_FILL);
+}
+
+void LightPass::setDepthTest(bool dT)
+{
+	depthTest = dT;
 }

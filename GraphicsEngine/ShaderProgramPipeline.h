@@ -8,10 +8,11 @@ class ShaderProgram;
 class ShaderProgramPipeline
 {
 private:
-	ShaderProgramPipeline(std::string s, bool alphaRendered = false);
+	ShaderProgramPipeline(std::string s);
 	~ShaderProgramPipeline();
 public:
-	bool alphaRendered;
+	bool alphaRendered = false;
+	bool cullFace = false;
 	static std::vector<ShaderProgramPipeline*> pipelines;
 	static ShaderProgramPipeline* getPipeline(std::string s);
 	std::string signature;
